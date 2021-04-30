@@ -1,0 +1,286 @@
+<html>
+    <head>
+   
+    
+      <script src="https://d3js.org/d3.v6.min.js"></script>
+      <script src="https://d3js.org/topojson.v2.min.js"></script>
+      <style>
+
+        .country {
+          fill: rgb(242, 235, 235);
+        }
+      
+        .outline {
+          stroke: grey;
+          stroke-width: 1px;
+          fill: none;
+        }
+        
+        .mouseover {
+          stroke-width: 3px;
+        }
+      
+        .graticule {
+          fill: none;
+          stroke: grey;
+          stroke-width: 1px;
+        }
+        .star {
+            fill: #fff;
+            stroke: rgba(255, 255, 255, .5);
+            stroke-width: .25px;
+        }
+        .tooltip text {
+        font-family: 'Lato',sans-serif;
+        }
+
+      
+        </style>
+    </head>
+
+    <body>
+       
+       
+      <svg id="choropleth" height="600" width="900" style="background:black; margin-top:50px" >
+
+      </svg>
+    
+      <svg id="colorLegend" height="100" width="600" style="background: #fff; margin-top:30px" >
+    
+      </svg>
+    
+      <script id="notes1">
+  
+        const svg = d3.select("#choropleth");
+        const width = svg.attr("width");
+        const height = svg.attr("height");
+        const margin = { top: 20, right: 20, bottom: 20, left:20};
+        const mapWidth = width - margin.left - margin.right;
+        const mapHeight = height - margin.top - margin.bottom;
+        const map = svg.append("g")
+                        .attr("transform","translate("+margin.left+","+margin.top+")");
+        //Create variables
+        
+          var countries;
+          var countriesMesh;
+          var projection;
+          var path;
+          var countryNameDic1;
+
+        const requestData = async function(){
+          countrydata = await d3.json("countries-110m.json");
+          console.log(countrydata);
+
+          countries = topojson.feature(countrydata, countrydata.objects.countries);
+          countriesMesh = topojson.mesh(countrydata, countrydata.objects.countries);
+
+          // The country names for two datasets are inconsistent. Do a dictionary to map the same countries.
+             countryNameDic1 = {
+                              // "W. Sahara",
+                              //"Falkland Is.",
+                              //"Greenland",
+                              //Fr. S. Antarctic Lands,
+                              //"Puerto Rico",
+                              //Palestine,
+                              //"New Caledonia",
+                              //"Antarctica",
+                              "Russian Federation": "Russia",
+                              "Democratic Republic of the Congo":"Dem. Rep. Congo",
+                              "Dominican Republic":"Dominican Rep.",
+                              "Bolivia (Plurinational State of)": "Bolivia",
+                              "Venezuela (Bolivarian Republic of)": "Venezuela",
+                              "Central African Republic":"Central African Rep",
+                              "Equatorial Guinea":"Eq. Guinea",
+                              "Lao People's Democratic Republic":"Laos",
+                              "Viet Nam": "Vietnam",
+                              "Democratic People's Republic of Korea":"North Korea",
+                              "Republic of Korea": "South Korea",
+                              "Iran (Islamic Republic of)": "Iran",
+                              "Syrian Arab Republic":"Syria",
+                              "Republic of Moldova":"Moldova",
+                              "Solomon Islands":"Solomon Is.",
+                              "United Kingdom of Great Britain and Northern Ireland":"United Kingdom",
+                              "Brunei Darussalam":"Brunei",
+                              //"Cyprus": "N. Cyprus",
+                              "Somalia":"Somaliland",
+                              "Bosnia and Herzegovina":"Bosnia and Herz.",
+                              "South Sudan":"S. Sudan",
+                              "North Macedonia":"Macedonia",
+                              //Kosovo,            
+                     };
+
+          const record= await d3.json("./record 1.json");
+          console.log(record);
+          console.log(record.data)
+
+          record.data.forEach((d,i)=>{  
+            // change country name
+            if(d['country'] in countryNameDic1) {
+                    d['country'] = countryNameDic1[d['country']];
+                }
+           });
+
+         // merge value, year into TopoJSON data
+          valueByCountry = {};
+          
+                    record.data.forEach( d => { 
+                      valueByCountry[d.country] = d;
+                    });
+                   
+                    //console.log(valueByCountry[d.value]);
+                    countries.features.forEach( d => {
+                          country = d.properties.name;
+                          console.log(valueByCountry)
+                              if (country in valueByCountry) {
+                                  d.properties.value = valueByCountry[country].value;
+                                  console.log(valueByCountry[country].value);
+                              }
+                              else {
+                                  d.properties.value = null;
+                              }
+
+                    });
+                   
+                    //console.log(countries.features);
+
+              
+         
+         
+        let Vals = d3.map(record.data, d => d.value);
+        console.log(Vals);
+        let colorMatrix = ["#FEE391","#FEC44F","#FE9929","#D95F0E","#993404"];
+        
+        let valueScale = d3.scaleQuantize().domain([0,190000]).range(["#FEE391","#FEC44F","#FE9929","#D95F0E","#993404"]);
+         
+        console.log(countries);
+        console.log(countriesMesh);
+
+        var projection = d3.geoOrthographic().rotate([90, -30, 0]).fitSize([mapWidth,mapHeight], countries);
+        var path =d3.geoPath().projection(projection);
+
+        var world = {type:"Sphere"}
+        map.append("path")
+            .datum(world)
+            .attr("d", path)
+            .attr("fill","#1C2E4A");
+      //  console.log(countries);
+
+             const graticule =d3.geoGraticule10();
+                    map.append("path").datum(graticule)  //only add one mesh 
+                        .attr("class","graticule")
+                        .attr("d",path);
+
+                    map.selectAll("path.countries").data(countries.features)
+                        .join("path")
+                        .attr("class","countries")
+                        .attr("note",d=>d.id)
+                        .attr("d", path)
+                        .attr("fill", d => {
+                                    let valueIndex = valueScale(d.properties.value);
+                                    console.log(d.properties.value);
+
+                                    if (valueIndex === undefined) {
+                                      // console.log(d.properties.value);
+                                        return ["#1C2E4A"];  // No fill
+                                    }
+                                    //console.log(colorMatrix[ valueIndex ]);
+                                    else {
+                                      //console.log(valueScale(valueIndex ));
+                                      
+                                       return valueIndex;
+                                        //console.log(colorMatrix[ valueIndex ]);
+                                    }
+                                    
+
+                                    });
+                    map.append("path").datum(countriesMesh)  
+                          .attr("class","outline")
+                          .attr("d",path);
+                  
+                        //add tooltip
+                        let tooltip1Width = 200;
+                        let tooltip1Height = 50;
+
+
+                        let tooltip1 = map.append("g")
+                                          .attr("class","tooltip")
+                                          .attr("visibility","hidden");
+                        tooltip1.append("rect")
+                              .attr("fill", "white")
+                              .attr("opacity", 0.9)
+                              .attr("x", -tooltip1Width / 2.0)
+                              .attr("y", 0)
+                              .attr("width",tooltip1Width)
+                              .attr("height",tooltip1Height)
+                      let txt3 = tooltip1.append("text")
+                                      .attr("fill", "black")
+                                      .attr("text-anchor","middle")
+                                      .attr("alignment-baseline","hanging")
+                                      .attr("x", 0)
+                                      .attr("y", 10);
+                      let txt4 = tooltip1.append("text")
+                                      .attr("fill", "black")
+                                      .attr("text-anchor","middle")
+                                      .attr("alignment-baseline","hanging")
+                                      .attr("x", 0)
+                                      .attr("y", 30);
+
+                                    
+
+      let momesh1 =  map.append("path")
+                      .attr("class","mouseover outline")
+                      .attr("d", "");
+      d3.selectAll(".countries").on("mouseenter",mouseEntersPlot);
+      d3.selectAll(".countries").on("mouseout",mouseLeavesPlot);
+
+     function mouseEntersPlot(){
+            //console.log("enter")
+            tooltip1.style("visibility","visible");
+
+            let countries = d3.select(this);
+            let countriesID = countries.datum().id;
+            console.log(countries.datum());
+
+            countries.attr("stroke","black").attr("stroke-width",3);
+            txt3.text(countries.datum().properties.name);
+            txt4.text(countries.datum().properties.value);
+
+
+            let mo1 = topojson.mesh(countrydata, countrydata.objects.countries, function(a, b) { 
+                                          return a.id === countriesID || b.id === countriesID; 
+                                            });
+            momesh1.datum(mo1).attr("d", path);
+
+           
+
+            let bounds2 = path.bounds( countries.datum() );
+            //console.log(bounds2);
+
+            let xPos2 = (bounds2[0][0]+bounds2[1][0])/2.0;
+            let yPos2 = bounds2[1][1];
+
+            tooltip1.attr("transform",`translate(${xPos2},${yPos2})`);
+
+
+        }
+            function mouseLeavesPlot(){
+              //console.log("leave")
+              tooltip1.style("visibility","hidden");
+              let countries = d3.select(this);
+              countries.attr("stroke-width",0);
+
+              momesh1.attr("d", "");
+            }
+
+                  
+};
+
+
+           
+                
+      requestData();
+    
+    
+    </script>
+    </body>
+    </html>
